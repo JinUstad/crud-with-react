@@ -6,7 +6,7 @@ function App() {
   const [name, setName] = useState('')
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(false)
-  const [fetchLoading, setFetchLoading] = useState(true)
+  const [fetchLoading, setFetchLoading] = useState(false)
   const [editingId, setEditingId] = useState(null)
   const [message, setMessage] = useState({ text: '', type: '' })
 
@@ -19,9 +19,9 @@ function App() {
   }
 
   // 1. READ: Fetch all items from Supabase
-  const fetchItems = async () => {
+  const loadItems = async () => {
+    setFetchLoading(true)
     try {
-      setFetchLoading(true)
       const { data, error } = await supabase
         .from('items')
         .select('*')
@@ -38,7 +38,29 @@ function App() {
   }
 
   useEffect(() => {
-    fetchItems()
+    let isMounted = true
+
+    async function initialFetch() {
+      const { data, error } = await supabase
+        .from('items')
+        .select('*')
+        .order('id', { ascending: false })
+
+      if (isMounted) {
+        if (error) {
+          console.error('Fetch error:', error)
+          setMessage({ text: `Failed to load items: ${error.message}`, type: 'error' })
+        } else {
+          setItems(data || [])
+        }
+      }
+    }
+
+    initialFetch()
+
+    return () => {
+      isMounted = false
+    }
   }, [])
 
   // 2. CREATE: Single-input operation to insert a new name into Supabase
@@ -76,7 +98,7 @@ function App() {
       }
 
       setName('')
-      await fetchItems()
+      await loadItems()
     } catch (err) {
       console.error('Operation error:', err)
       showFeedback(`Error: ${err.message}`, 'error')
@@ -112,7 +134,7 @@ function App() {
       if (editingId === id) {
         handleCancelEdit()
       }
-      await fetchItems()
+      await loadItems()
     } catch (err) {
       console.error('Delete error:', err)
       showFeedback(`Failed to delete: ${err.message}`, 'error')
@@ -189,7 +211,7 @@ function App() {
           <button
             type="button"
             className="btn btn-sm btn-ghost"
-            onClick={fetchItems}
+            onClick={loadItems}
             disabled={fetchLoading}
           >
             {fetchLoading ? 'Refreshing...' : '↻ Refresh'}
